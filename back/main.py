@@ -1,30 +1,30 @@
-import os, socket
-from dotenv import load_dotenv
+import asyncio
+import websockets
 
-load_dotenv('./.env')
+# сохраняет всех клиентов, подключенных к серверу
+client_list = []   
 
-HOST = os.getenv("HOST")
-PORT = os.getenv("PORT")
+async def handler(websocket):
+    client_list.append(websocket)    
+    while True:
+        try:
+            message = await websocket.recv()
+            print('Message received from client: ', message)           
+            # await broadcast(message)
+            await websocket.send(message)
+        except Exception as e:            
+            print('REMOVE', e)
+            client_list.remove(websocket)
+            break
 
-# def start_server():
-# Создаем сокет
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.bind((HOST, PORT))
+# async def broadcast(message):
+#     for client in client_list:                
+#         # транслирует сообщение другому клиенту
+#         await client.send(message)
 
-# Слушаем входящие соединения
-server.listen(1)
-print("Сервер запущен и ожидает подключений...")
+async def main():
+    async with websockets.serve(handler, "localhost", 8080):
+        await asyncio.Future()  # работает бесконечно
 
-# Принимаем входящее соединение
-client_socket, client_address = server.accept()
-print(f"Подключение установлено с {client_address}")
-
-# Получаем данные от клиента, по 1024 байт
-data = client_socket.recv(1024).decode('utf-8')
-print(f"Получены данные: {data}")
-HDRS = 'HTTP/1.1 200 OK\r\nContent-Type text/html; charset=utf-8\r\n\r\n'
-
-content = 'Good'.encode('utf-8')
-
-client_socket.send(HDRS.encode('utf-8') + content)
-print('Shutdown')
+if __name__ == "__main__":
+    asyncio.run(main())
