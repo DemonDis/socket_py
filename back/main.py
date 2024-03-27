@@ -1,30 +1,35 @@
-import asyncio
 import websockets
+import json
+import random
+import asyncio
 
-# сохраняет всех клиентов, подключенных к серверу
-client_list = []   
+from src.static.request import HOST, PORT, REQUEST_SEND, REQUEST_SEND_ERROR
+from src.static.answers import ANSWERS
 
 async def handler(websocket):
-    client_list.append(websocket)    
-    while True:
+    async for message in websocket:
+        request_get = json.loads(message)
+        print('❓', message)
         try:
-            message = await websocket.recv()
-            print('Message received from client: ', message)           
-            # await broadcast(message)
-            await websocket.send(message)
+            if request_get['request_type'] == 'question:message':
+                REQUEST_SEND['response']['question'] = request_get['request']['question']
+                REQUEST_SEND['response']['answer'] = random.choice(ANSWERS)
+                REQUEST_SEND['request_type'] = 'question:message'
+                REQUEST_SEND['correlation_id'] = request_get['message_id']
+                await asyncio.sleep(3)
+                await websocket.send(json.dumps(REQUEST_SEND))
+                print('❔ status=0 ❔', REQUEST_SEND['correlation_id'], REQUEST_SEND['request_type'])
+            if request_get['request_type'] == 'question:error':
+                REQUEST_SEND_ERROR['request_type'] = 'question:error'
+                REQUEST_SEND_ERROR['correlation_id'] = request_get['message_id']
+                REQUEST_SEND_ERROR['status_text'] = '⚠️Упс, что-то пошло не так⚠️'
+                await websocket.send(json.dumps(REQUEST_SEND_ERROR))
+                print('❗ status=1 ❗', REQUEST_SEND['correlation_id'], REQUEST_SEND_ERROR['request_type'])
+                
         except Exception as e:            
-            print('REMOVE', e)
-            client_list.remove(websocket)
-            break
-
-# async def broadcast(message):
-#     for client in client_list:                
-#         # транслирует сообщение другому клиенту
-#         await client.send(message)
-
+            print('⚠️Exception⚠️', e)
 async def main():
-    async with websockets.serve(handler, "localhost", 8080):
-        await asyncio.Future()  # работает бесконечно
-
+    async with websockets.serve(handler, HOST, PORT):
+        await asyncio.Future()
 if __name__ == "__main__":
     asyncio.run(main())
